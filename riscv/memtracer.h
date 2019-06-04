@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string.h>
 #include <vector>
+#include <iostream>
 
 enum access_type {
   LOAD,
@@ -29,18 +30,23 @@ class memtracer_list_t : public memtracer_t
   bool empty() { return list.empty(); }
   bool interested_in_range(uint64_t begin, uint64_t end, access_type type)
   {
-    for (std::vector<memtracer_t*>::iterator it = list.begin(); it != list.end(); ++it)
-      if ((*it)->interested_in_range(begin, end, type))
-        return true;
+  //  printf("[memtracer.h] - memtracer_list_t -> interested in range \n");
+    for (std::vector<memtracer_t*>::iterator it = list.begin(); it != list.end(); ++it){
+      if ((*it)->interested_in_range(begin, end, type)){
+    //    printf("returning true\n" );
+        return true;}}
+  //  printf("memtracer list checking if in range returning false\n" );
     return false;
   }
   void trace(uint64_t addr, size_t bytes, access_type type)
   {
+    //  printf("[memtracer.h] - memtracer_list_t -> trace \n");
     for (std::vector<memtracer_t*>::iterator it = list.begin(); it != list.end(); ++it)
       (*it)->trace(addr, bytes, type);
   }
   void hook(memtracer_t* h)
   {
+    //printf("[memtracer.h] - hook \n ");
     list.push_back(h);
   }
  private:
