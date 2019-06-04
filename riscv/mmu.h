@@ -81,11 +81,13 @@ public:
   // template for functions that load an aligned value from memory
   #define load_func(type) \
     inline type##_t load_##type(reg_t addr) { \
-      if (unlikely(addr & (sizeof(type##_t)-1))) \
-        return misaligned_load(addr, sizeof(type##_t)); \
+      if (unlikely(addr & (sizeof(type##_t)-1))){ \
+        printf("vaddr misaligned load (tlb) vaddr: %#018" PRIx64 "\n", addr);\
+        return misaligned_load(addr, sizeof(type##_t));} \
       reg_t vpn = addr >> PGSHIFT; \
-      if (likely(tlb_load_tag[vpn % TLB_ENTRIES] == vpn)) \
-        return *(type##_t*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr); \
+      if (likely(tlb_load_tag[vpn % TLB_ENTRIES] == vpn)){ \
+        printf("vaddr load (tlb) vaddr: %#018" PRIx64 "\n", addr);\
+        return *(type##_t*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr);} \
       if (unlikely(tlb_load_tag[vpn % TLB_ENTRIES] == (vpn | TLB_CHECK_TRIGGERS))) { \
         type##_t data = *(type##_t*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr); \
         if (!matched_trigger) { \
@@ -93,6 +95,7 @@ public:
           if (matched_trigger) \
             throw *matched_trigger; \
         } \
+        printf("vaddr unlikely load (tlb) vaddr : %#018" PRIx64 "\n", addr);\
         return data; \
       } \
       type##_t res; \
@@ -115,11 +118,13 @@ public:
   // template for functions that store an aligned value to memory
   #define store_func(type) \
     void store_##type(reg_t addr, type##_t val) { \
-      if (unlikely(addr & (sizeof(type##_t)-1))) \
-        return misaligned_store(addr, val, sizeof(type##_t)); \
+      if (unlikely(addr & (sizeof(type##_t)-1))){ \
+        printf("vaddr misaligned store (tlb) vaddr: %#018" PRIx64 "\n", addr);\
+        return misaligned_store(addr, val, sizeof(type##_t));}\
       reg_t vpn = addr >> PGSHIFT; \
-      if (likely(tlb_store_tag[vpn % TLB_ENTRIES] == vpn)) \
-        *(type##_t*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr) = val; \
+      if (likely(tlb_store_tag[vpn % TLB_ENTRIES] == vpn)){ \
+        printf("vaddr store (tlb) vaddr: %#018" PRIx64 "\n", addr);\
+        *(type##_t*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr) = val; }\
       else if (unlikely(tlb_store_tag[vpn % TLB_ENTRIES] == (vpn | TLB_CHECK_TRIGGERS))) { \
         if (!matched_trigger) { \
           matched_trigger = trigger_exception(OPERATION_STORE, addr, val); \
@@ -127,6 +132,7 @@ public:
             throw *matched_trigger; \
         } \
         *(type##_t*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr) = val; \
+        printf("vaddr unlikely load (tlb) vaddr : %#018" PRIx64 "\n", addr);\
       } \
       else \
         store_slow_path(addr, sizeof(type##_t), (const uint8_t*)&val); \
@@ -315,9 +321,9 @@ private:
 
   // ITLB lookup
   inline tlb_entry_t translate_insn_addr(reg_t addr) {
-    reg_t vpn = addr >> PGSHIFT;
-    if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn))
-      return tlb_data[vpn % TLB_ENTRIES];
+        reg_t vpn = addr >> PGSHIFT;
+    if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn)){
+      return tlb_data[vpn % TLB_ENTRIES];}
     tlb_entry_t result;
     if (unlikely(tlb_insn_tag[vpn % TLB_ENTRIES] != (vpn | TLB_CHECK_TRIGGERS))) {
       result = fetch_slow_path(addr);
@@ -371,7 +377,6 @@ struct vm_info {
   int ptesize;
   reg_t ptbase;
 };
-
 inline vm_info decode_vm_info(int xlen, reg_t prv, reg_t satp)
 {
   if (prv == PRV_M) {

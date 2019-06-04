@@ -46,8 +46,8 @@ static void throw_access_exception(reg_t addr, access_type type)
 
 reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type)
 {
-  if (!proc)
-    return addr;
+  if (!proc){
+    return addr;}
 
   reg_t mode = proc->state.prv;
   if (type != FETCH) {
@@ -56,15 +56,18 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type)
   }
 
   reg_t paddr = walk(addr, type, mode) | (addr & (PGSIZE-1));
-  if (!pmp_ok(paddr, len, type, mode))
+  if (!pmp_ok(paddr, len, type, mode) || !pmp_homogeneous(paddr, len))
     throw_access_exception(addr, type);
+
   return paddr;
 }
 
 tlb_entry_t mmu_t::fetch_slow_path(reg_t vaddr)
 {
-  reg_t paddr = translate(vaddr, sizeof(fetch_temp), FETCH);
+  printf("paddr slow path fetch : %#018" PRIx64 " | ", vaddr);
 
+  reg_t paddr = translate(vaddr, sizeof(fetch_temp), FETCH);
+  printf("vaddr slow path fetch: %#018" PRIx64 "\n\n", paddr);
   if (auto host_addr = sim->addr_to_mem(paddr)) {
     return refill_tlb(vaddr, paddr, host_addr, FETCH);
   } else {
@@ -103,18 +106,18 @@ reg_t reg_from_bytes(size_t len, const uint8_t* bytes)
 
 void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes)
 {
+  printf("vaddr slow path load: %#018" PRIx64 "\n", addr);
   reg_t paddr = translate(addr, len, LOAD);
-
+  printf("paddr slow path load: %#018" PRIx64 "\n\n", paddr);
   if (auto host_addr = sim->addr_to_mem(paddr)) {
     memcpy(bytes, host_addr, len);
     if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
       tracer.trace(paddr, len, LOAD);
-    else
-      refill_tlb(addr, paddr, host_addr, LOAD);
+    else{
+      refill_tlb(addr, paddr, host_addr, LOAD);}
   } else if (!sim->mmio_load(paddr, len, bytes)) {
     throw trap_load_access_fault(addr);
   }
-
   if (!matched_trigger) {
     reg_t data = reg_from_bytes(len, bytes);
     matched_trigger = trigger_exception(OPERATION_LOAD, addr, data);
@@ -125,8 +128,9 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes)
 
 void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes)
 {
+  printf("vaddr slow path store: %#018" PRIx64 "\n", addr);
   reg_t paddr = translate(addr, len, STORE);
-
+  printf("paddr slow path store: %#018" PRIx64 "\n\n", paddr);
   if (!matched_trigger) {
     reg_t data = reg_from_bytes(len, bytes);
     matched_trigger = trigger_exception(OPERATION_STORE, addr, data);
